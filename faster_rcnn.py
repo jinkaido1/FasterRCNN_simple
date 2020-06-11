@@ -54,24 +54,36 @@ plot_model( model, to_file='vgg_part.png')
 print( model.summary())
 
 new_dense_1 = layers.Dense(256, name='new_dense_1')(model.layers[-1].output)
+new_dense_1_flat = layers.Flatten()(new_dense_1)
 
-k = 200
+anchors_k = 200
 alpha = 0.5
+#Get img size from model instead of hard coded
+anchors = generate_anchors_simple( 244, 244, anchors_k)
+k = anchors.shape[0]
+print( anchors.shape )
 
-class_predictions = layers.Dense(k*2, name='class_predictions')(new_dense_1)
-bbox_predictions = layers.Dense(k*4, name='bbox_predictions')(new_dense_1)
-new_model = Model(inputs=[model.input], outputs=[class_predictions, bbox_predictions])
+class_predictions = layers.Dense(k*2, name='class_predictions')(new_dense_1_flat)
+bbox_predictions = layers.Dense(k*4, name='bbox_predictions')(new_dense_1_flat)
+
+class_output = layers.Reshape((k,2), name='class_output')(class_predictions)
+bbox_output = layers.Reshape((k,4), name='bbox_output')(bbox_predictions)
+
+new_model = Model(inputs=[model.input], outputs=[class_output, bbox_output])
+#new_model = Model(inputs=[model.input], outputs=[class_predictions, bbox_predictions])
 
 plot_model( new_model, to_file='vgg_extend.png')
 print( new_model.summary())
 
-#Get img size from model instead of hard coded
-anchors = generate_anchors_simple( 244, 244, k)
 
 new_model.compile( optimizer='adam', \
-    loss={'class_predictions':'binary_crossentropy', 
-    'bbox_predictions':bounding_box_loss(anchors)},
-    loss_weights={'class_predictions':alpha, 'bbox_predictions':1-alpha})
+    loss={
+    'class_output':'binary_crossentropy', 
+    'bbox_output':bounding_box_loss(anchors)},
+    loss_weights={'class_output':alpha, 'bbox_output':1-alpha})
+    #'class_predictions':'binary_crossentropy', 
+    #'bbox_predictions':'mse'},
+    #loss_weights={'class_predictions':alpha, 'bbox_predictions':1-alpha})
 
 
 
