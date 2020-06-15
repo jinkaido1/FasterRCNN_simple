@@ -127,6 +127,10 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
              
         print( positives.shape)
         print( negatives.shape)
+
+        #TODO - Display and verify positive and negative examples
+        #Format output correctly for generator
+        #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
  
         display = True
         #display = False
