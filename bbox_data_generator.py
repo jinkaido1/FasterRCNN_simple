@@ -8,6 +8,15 @@ import matplotlib.patches as patches
 from PIL import Image
 from generate_anchors import generate_anchors_simple
 
+#R is xmin ymin xmax ymax
+def area(R1, R2):
+    dx = min(R1[2], R2[2]) - max(R1[0], R2[0])
+    dy = min(R1[3], R2[3]) - max(R1[1], R2[1])
+    if (dx>=0) and (dy>=0):
+        return dx*dy
+    else:
+        return 0
+
 class boundingBoxImageDataGenerator( keras.utils.Sequence):
 
     def __init__(self, img_folder, bbox_label_file_csv,\
@@ -36,6 +45,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
           bbox_str = df['bbox'][i]
           bbox_str = bbox_str[1:-1]
           s = StringIO( bbox_str)
+          #Note bbox is x,y,w,h.
           bbox = np.loadtxt(s, delimiter=',')
           #Figure out how to modify Bounding boxes to match desired anchor image size
           im = Image.open( self.img_folder+'/'+img_id+'.jpg')
@@ -54,6 +64,9 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
               self.bbox_data[img_id].append(bbox)
           self.img_ids = list(self.bbox_data.keys())
 
+          self.Y_reg = np.zeros((anchor_boxes.shape[0],4))
+          self.Y_cls = np.zeros((anchor_boxes.shape[0],2))
+
         #Get image size from input, make sure all BBs are scaled according
         #desired input image size to network
 
@@ -61,6 +74,13 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         return int(self.num_images_per_epoch/self.num_images_per_batch)
 
     def __getitem__(self, index):
+
+        display = True
+        #display = False
+
+        self.Y_reg.fill(0)
+        self.Y_cls.fill(0)
+
         #Load image pertaining to index
         #Load positive bounding boxes from image
         #Sort all anchors. Pick the first batch_size/2 which have ROI overlap > threshold
@@ -88,9 +108,9 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         anchor_scores = np.zeros(self.anchor_boxes.shape[0])
 
         for i, a in enumerate(self.anchor_boxes, start=0):
-            print(i, a)
+            #print(i, a)
             a_bbox = [a[0], a[1], a[2], a[3]]
-            print(a_bbox)
+            #print(a_bbox)
             num_positive = np.sum(\
                 positive_im_arr[a_bbox[1]:a_bbox[1]+a_bbox[3],\
                                 a_bbox[0]:a_bbox[0]+a_bbox[2]])
@@ -102,42 +122,86 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
               input('a')
 
         sorted_indexes = np.argsort(-anchor_scores)
-        for i in range(0, len(sorted_indexes)):
-            print( i, anchor_scores[sorted_indexes[i]])
-
+        #for i in range(0, len(sorted_indexes)):
+        #    print( i, anchor_scores[sorted_indexes[i]])
+        #TODO - Dont sort by randomly pick boxes that are positive > threshold
         #Positive examples 
-        score_threshold = 0.5
+        pos_score_threshold = 0.5
+        neg_score_threshold = 0.1
         positives = np.empty((0,4))
+        positive_indexes = []
         for i in range(0, int(self.batch_size/2)):
-            print(i, anchor_scores[sorted_indexes[i]])
-            if anchor_scores[sorted_indexes[i]]>=score_threshold:
-                positives = np.append(positives, self.anchor_boxes[i])
+            #print(i, anchor_scores[sorted_indexes[i]])
+            if anchor_scores[sorted_indexes[i]]>=pos_score_threshold:
+                positives = np.append(positives, self.anchor_boxes[sorted_indexes[i]])
+                positive_indexes = np.append( positive_indexes, sorted_indexes[i])
             else:
                 break
         positives = np.reshape(positives, (int(len(positives)/4), 4))
+
+        #num negatives that need to be added to positives to meet batch_size
+        num_negatives = self.batch_size-positives.shape[0]
         #Negative examples
+        #TODO - Remove sorting for negatives - pick at random
         negatives = np.empty((0,4))
+        negative_indexes = []
         for i in range(len(sorted_indexes)-1,\
-             len(sorted_indexes)-int(self.batch_size/2)-1, -1):
-            if anchor_scores[sorted_indexes[i]]<score_threshold:
-                negatives = np.append(negatives, self.anchor_boxes[i])
+             len(sorted_indexes)-num_negatives-1, -1):
+            if anchor_scores[sorted_indexes[i]]<pos_score_threshold:# and\
+                #anchor_scores[sorted_indexes[i]]>neg_score_threshold:
+                negatives = np.append(negatives, self.anchor_boxes[sorted_indexes[i]])
+                negative_indexes = np.append( negative_indexes, sorted_indexes[i])
             else:
                 break
         negatives = np.reshape(negatives, (int(len(negatives)/4), 4))
+        negative_indexes = negative_indexes.astype(int)
              
-        print( positives.shape)
-        print( negatives.shape)
-
-        #TODO - Display and verify positive and negative examples
+        #print( positives.shape)
+        #print( negatives.shape)
+        #print( positive_indexes)
+        #print( negative_indexes)
+        
         #Format output correctly for generator
-        #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
- 
-        display = True
-        #display = False
+        #Find best GT BB corresponding to positives
+        positives_bbox = np.empty((0,4))
+
+        for i in range(0, positives.shape[0]):
+            anchor = positives[i, :]
+            max_area = 0
+            max_index = -1
+            for j, bbox in enumerate(self.bbox_data[img_id]):
+                R1 = np.copy(bbox)
+                R1[2] += R1[0]
+                R1[3] += R1[1]
+                R2 = np.copy(anchor)
+                R2[2] += R2[0]
+                R2[3] += R2[1]
+
+                curr_area = area(R1, R2)
+                if(curr_area>max_area):
+                    max_area = curr_area
+                    max_index = j
+            self.Y_reg[max_index,:] = self.bbox_data[img_id][max_index] - anchor
+            self.Y_cls[max_index,:] = [0, 1]
+            if display:
+                positives_bbox = np.append( positives_bbox, self.bbox_data[img_id][max_index])
+
+        positives_bbox = np.reshape(positives_bbox, (int(len(positives_bbox)/4), 4))
+
+        for i in range(0, negatives.shape[0]):
+            #print( negative_indexes[i])
+            self.Y_cls[negative_indexes[i],:] = [1, 0]
+
+        #print( self.Y_reg)
+        #print( self.Y_cls)
+
+        #display = True
+        display = False
         if display:
           plt.clf()
           ax = plt.subplot(2,2,1)
           ax.imshow(im)
+          ax.set_title('GT detections')
           for bbox in self.bbox_data[img_id]:
             #print(bbox)
             rect = patches.Rectangle((bbox[0],bbox[1]), bbox[2], bbox[3],\
@@ -145,13 +209,29 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
             ax.add_patch(rect)
           ax = plt.subplot(2,2,2)
           ax.imshow(positive_im_arr)
-        
+          ax.set_title('All postives map')
+          ax = plt.subplot(2,2,3)
+          ax.imshow(im)
+          for i in range(0, positives.shape[0]):
+            anchor = positives[i, :]
+            anchor_bb = positives_bbox[i,:]
+            rect = patches.Rectangle((anchor[0], anchor[1]), anchor[2], anchor[3],\
+                 facecolor='none', edgecolor='g')
+            ax.add_patch(rect)
+            rect = patches.Rectangle((anchor_bb[0], anchor_bb[1]), anchor_bb[2], anchor_bb[3],\
+                 facecolor='none', edgecolor='r')
+            ax.add_patch(rect)
+            
+          for i in range(0, negatives.shape[0]):
+            anchor = negatives[i, :]
+            rect = patches.Rectangle((anchor[0], anchor[1]), anchor[2], anchor[3],\
+                 facecolor='none', edgecolor='b')
+            ax.add_patch(rect)
+          ax.set_title('Sample positive and negative anchors')
+ 
           plt.waitforbuttonpress()
 
-       
-
-
-
-
-
-        return im, 0
+        X = np.expand_dims(np.array(im), axis=0) 
+        return (X, \
+            {'class_output':np.expand_dims(self.Y_cls, axis=0),\
+              'bbox_output':np.expand_dims(self.Y_reg, axis=0)})

@@ -6,6 +6,7 @@ from keras import layers
 from keras import Model
 import keras.backend as K
 from FasterRCNN_losses import bounding_box_loss
+from bbox_data_generator import boundingBoxImageDataGenerator
 
 # Define custom loss
 def custom_loss_2(layer):
@@ -56,10 +57,12 @@ print( model.summary())
 new_dense_1 = layers.Dense(256, name='new_dense_1')(model.layers[-1].output)
 new_dense_1_flat = layers.Flatten()(new_dense_1)
 
+img_num_rows = 224
+img_num_cols = 224
 anchors_k = 200
 alpha = 0.5
 #Get img size from model instead of hard coded
-anchors = generate_anchors_simple( 244, 244, anchors_k)
+anchors = generate_anchors_simple( img_num_rows, img_num_cols, anchors_k )
 k = anchors.shape[0]
 print( anchors.shape )
 
@@ -75,7 +78,7 @@ new_model = Model(inputs=[model.input], outputs=[class_output, bbox_output])
 plot_model( new_model, to_file='vgg_extend.png')
 print( new_model.summary())
 
-
+#Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
 new_model.compile( optimizer='adam', \
     loss={
     'class_output':'binary_crossentropy', 
@@ -85,5 +88,11 @@ new_model.compile( optimizer='adam', \
     #'bbox_predictions':'mse'},
     #loss_weights={'class_predictions':alpha, 'bbox_predictions':1-alpha})
 
+#Data generator
+bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-detection/train',\
+    '/home/manju/code/ML/data/global-wheat-detection/train.csv',\
+    anchors, img_num_rows, img_num_cols)
+
+new_model.fit_generator( generator = bbox_gen )
 
 
