@@ -72,7 +72,7 @@ bbox_predictions = layers.Dense(k*4, name='bbox_predictions')(new_dense_1_flat)
 class_output = layers.Reshape((k,2), name='class_output')(class_predictions)
 bbox_output = layers.Reshape((k,4), name='bbox_output')(bbox_predictions)
 
-new_model = Model(inputs=[model.input], outputs=[class_output, bbox_output])
+new_model = Model(inputs=[model.input], outputs=[bbox_output, class_output])
 #new_model = Model(inputs=[model.input], outputs=[class_predictions, bbox_predictions])
 
 plot_model( new_model, to_file='vgg_extend.png')
@@ -81,8 +81,8 @@ print( new_model.summary())
 #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
 new_model.compile( optimizer='adam', \
     loss={
-    'class_output':'binary_crossentropy', 
-    'bbox_output':bounding_box_loss(anchors)},
+    'bbox_output':bounding_box_loss(anchors),
+    'class_output':'binary_crossentropy'}, 
     loss_weights={'class_output':alpha, 'bbox_output':1-alpha})
     #'class_predictions':'binary_crossentropy', 
     #'bbox_predictions':'mse'},

@@ -13,20 +13,32 @@ def custom_loss(layer):
 def bounding_box_loss(anchors):
 #
     def loss(y_true,y_pred):
-        tx = (y_pred[:,:,0]-anchors[:,0])/anchors[:,2]
-        ty = (y_pred[:,:,1]-anchors[:,1])/anchors[:,3]
-        tw = tf.math.log( y_pred[:,:,2]/anchors[:,2])
-        th = tf.math.log( y_pred[:,:,3]/anchors[:,3])
+        epsilon = 1e-10
+        keep_indexes = y_true[:,:,3]!=0
+        y_t = y_true[keep_indexes]
+        y_p = y_pred[keep_indexes]
+        y_p += epsilon
+        y_t += epsilon
+        #a = anchors[tf.squeeze(keep_indexes, axis=0)]
+        keep_indexes_where = tf.where(keep_indexes)
+        a = tf.gather(anchors, keep_indexes_where[:,1])
+        a = tf.dtypes.cast(a, dtype=tf.float32 )
 
-        gx = (y_true[:,:,0]-anchors[:,0])/anchors[:,2]
-        gy = (y_true[:,:,1]-anchors[:,1])/anchors[:,3]
-        gw = tf.math.log( y_true[:,:,2]/anchors[:,2])
-        gh = tf.math.log( y_true[:,:,3]/anchors[:,3])
+        tx = (y_p[:,0]-a[:,0])/a[:,2]
+        ty = (y_p[:,1]-a[:,1])/a[:,3]
+        tw = tf.math.log( y_p[:,2]/a[:,2])
+        th = tf.math.log( y_p[:,3]/a[:,3])
 
-        return K.mean(K.square(tx-gx)+\
+        gx = (y_t[:,0]-a[:,0])/a[:,2]
+        gy = (y_t[:,1]-a[:,1])/a[:,3]
+        gw = tf.math.log( y_t[:,2]/a[:,2])
+        gh = tf.math.log( y_t[:,3]/a[:,3])
+
+        L = K.mean(K.square(tx-gx)+\
                       K.square(ty-gy)+\
                       K.square(tw-gw)+\
                       K.square(th-gh)\
                       , axis=-1)
+        return L
 
     return loss

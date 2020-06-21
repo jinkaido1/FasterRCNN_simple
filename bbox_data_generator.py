@@ -181,7 +181,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
                 if(curr_area>max_area):
                     max_area = curr_area
                     max_index = j
-            self.Y_reg[max_index,:] = self.bbox_data[img_id][max_index] - anchor
+            self.Y_reg[max_index,:] = self.bbox_data[img_id][max_index]# - anchor
             self.Y_cls[max_index,:] = [0, 1]
             if display:
                 positives_bbox = np.append( positives_bbox, self.bbox_data[img_id][max_index])
