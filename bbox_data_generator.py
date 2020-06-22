@@ -7,6 +7,7 @@ import matplotlib.image as mpimg
 import matplotlib.patches as patches
 from PIL import Image
 from generate_anchors import generate_anchors_simple
+import pickle
 
 #R is xmin ymin xmax ymax
 def area(R1, R2):
@@ -22,7 +23,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
     def __init__(self, img_folder, bbox_label_file_csv,\
         anchor_boxes, anchor_img_num_rows, anchor_img_num_cols,
         batch_size = 32,
-        num_images_per_epoch = 1000, 
+        num_images_per_epoch = 1, 
         shuffle=True, hard_negative=False):
         self.img_folder = img_folder
         self.bbox_label_file_csv = bbox_label_file_csv
@@ -36,36 +37,65 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         self.hard_negative = hard_negative
         df = pd.read_csv( self.bbox_label_file_csv)
         self.bbox_data = {}
-        for i, row in df.iterrows():
-          if i > 2500:
-            break
-          if i%1000==0:
-              print(str(i) + ' of ' + str(len(df)) + ' bboxes read')
-          img_id = row['image_id']
-          bbox_str = df['bbox'][i]
-          bbox_str = bbox_str[1:-1]
-          s = StringIO( bbox_str)
-          #Note bbox is x,y,w,h.
-          bbox = np.loadtxt(s, delimiter=',')
-          #Figure out how to modify Bounding boxes to match desired anchor image size
-          im = Image.open( self.img_folder+'/'+img_id+'.jpg')
-          scale_y = self.anchor_img_num_rows*1.0/im.size[1]
-          scale_x = self.anchor_img_num_cols*1.0/im.size[0]
-          bbox[0] *= scale_x
-          bbox[1] *= scale_y
-          bbox[2] *= scale_x
-          bbox[3] *= scale_y
-          bbox = bbox.astype(int)
 
-          if img_id in self.bbox_data:
-              self.bbox_data[img_id].append(bbox)
-          else:
-              self.bbox_data[img_id]=[]
-              self.bbox_data[img_id].append(bbox)
-          self.img_ids = list(self.bbox_data.keys())
+        #use_preloaded_data = False
+        use_preloaded_data = True
+        cached_filename = '/home/manju/code/ML/data/global-wheat-detection/cached/keras_generator_bbox_imgids.npy'
+        #Read from raw files and save a cached file for next time
+        if not use_preloaded_data:
+            for i, row in df.iterrows():
+                if i > 2500:
+                  break
+                if i%1000==0:
+                    print(str(i) + ' of ' + str(len(df)) + ' bboxes read')
+                img_id = row['image_id']
+                bbox_str = df['bbox'][i]
+                bbox_str = bbox_str[1:-1]
+                s = StringIO( bbox_str)
+                #Note bbox is x,y,w,h.
+                bbox = np.loadtxt(s, delimiter=',')
+                #Figure out how to modify Bounding boxes to match desired anchor image size
+                im = Image.open( self.img_folder+'/'+img_id+'.jpg')
+                scale_y = self.anchor_img_num_rows*1.0/im.size[1]
+                scale_x = self.anchor_img_num_cols*1.0/im.size[0]
+                bbox[0] *= scale_x
+                bbox[1] *= scale_y
+                bbox[2] *= scale_x
+                bbox[3] *= scale_y
+                bbox = bbox.astype(int)
 
-          self.Y_reg = np.zeros((anchor_boxes.shape[0],4))
-          self.Y_cls = np.zeros((anchor_boxes.shape[0],2))
+                if img_id in self.bbox_data:
+                    self.bbox_data[img_id].append(bbox)
+                else:
+                    self.bbox_data[img_id]=[]
+                    self.bbox_data[img_id].append(bbox)
+                self.img_ids = list(self.bbox_data.keys())
+
+            overwrite_saved_data = True
+            if overwrite_saved_data:
+                with open(cached_filename, 'wb') as f:
+                    data = {}
+                    data['img_ids'] = self.img_ids
+                    data['bbox_data'] = self.bbox_data
+                    pickle.dump(data, f)
+                    f.close()
+            print( len(self.img_ids))
+            print( len(self.bbox_data))
+            input('d')
+        #Load from cached saved data 
+        else:
+            with open(cached_filename, 'rb') as f:
+                data = pickle.load(f)
+                print(data)
+                print(data.keys)
+                self.bbox_data = data['bbox_data']
+                self.img_ids = data['img_ids']
+            print( len(self.img_ids))
+            print( len(self.bbox_data))
+            input('d2')
+
+        self.Y_reg = np.zeros((anchor_boxes.shape[0],4))
+        self.Y_cls = np.zeros((anchor_boxes.shape[0],2))
 
         #Get image size from input, make sure all BBs are scaled according
         #desired input image size to network
@@ -231,7 +261,9 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
  
           plt.waitforbuttonpress()
 
-        X = np.expand_dims(np.array(im), axis=0) 
+        im_arr = keras.applications.vgg16.preprocess_input(np.array(im))
+
+        X = np.expand_dims(im_arr, axis=0) 
         return (X, \
             {'class_output':np.expand_dims(self.Y_cls, axis=0),\
               'bbox_output':np.expand_dims(self.Y_reg, axis=0)})

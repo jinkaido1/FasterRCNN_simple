@@ -4,9 +4,12 @@ from keras.applications.vgg16 import VGG16
 from keras.utils.vis_utils import plot_model
 from keras import layers
 from keras import Model
+from keras import optimizers
 import keras.backend as K
 from FasterRCNN_losses import bounding_box_loss
 from bbox_data_generator import boundingBoxImageDataGenerator
+from keras.callbacks import TensorBoard
+import datetime
 
 # Define custom loss
 def custom_loss_2(layer):
@@ -60,14 +63,16 @@ new_dense_1_flat = layers.Flatten()(new_dense_1)
 img_num_rows = 224
 img_num_cols = 224
 anchors_k = 200
-alpha = 0.5
+alpha_class = 1
+alpha_bbox = 1
 #Get img size from model instead of hard coded
 anchors = generate_anchors_simple( img_num_rows, img_num_cols, anchors_k )
 k = anchors.shape[0]
 print( anchors.shape )
 
-class_predictions = layers.Dense(k*2, name='class_predictions')(new_dense_1_flat)
-bbox_predictions = layers.Dense(k*4, name='bbox_predictions')(new_dense_1_flat)
+class_predictions = layers.Dense(k*2, activation='sigmoid', name='class_predictions')(new_dense_1_flat)
+#class_predictions = layers.Dense(k*2, name='class_predictions')(new_dense_1_flat)
+bbox_predictions = layers.Dense(k*4, activation='relu', name='bbox_predictions')(new_dense_1_flat)
 
 class_output = layers.Reshape((k,2), name='class_output')(class_predictions)
 bbox_output = layers.Reshape((k,4), name='bbox_output')(bbox_predictions)
@@ -78,21 +83,37 @@ new_model = Model(inputs=[model.input], outputs=[bbox_output, class_output])
 plot_model( new_model, to_file='vgg_extend.png')
 print( new_model.summary())
 
+opt = optimizers.Adam(learning_rate=0.0001)
+
 #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
-new_model.compile( optimizer='adam', \
+new_model.compile( optimizer=opt, \
     loss={
     'bbox_output':bounding_box_loss(anchors),
     'class_output':'binary_crossentropy'}, 
-    loss_weights={'class_output':alpha, 'bbox_output':1-alpha})
-    #'class_predictions':'binary_crossentropy', 
-    #'bbox_predictions':'mse'},
-    #loss_weights={'class_predictions':alpha, 'bbox_predictions':1-alpha})
+    loss_weights={'class_output':alpha_class, 'bbox_output':alpha_bbox})
 
 #Data generator
 bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-detection/train',\
     '/home/manju/code/ML/data/global-wheat-detection/train.csv',\
     anchors, img_num_rows, img_num_cols)
 
-new_model.fit_generator( generator = bbox_gen )
+log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+new_model.fit_generator( generator = bbox_gen,\
+    epochs = 5000,
+    steps_per_epoch=1,
+    callbacks=[tensorboard_callback] )
+
+new_model.fit_generator( generator = bbox_gen,\
+    epochs = 1000,
+    steps_per_epoch=1)
 
 
+#Why is box loss Nan for 1st iter?
+#Why num_images_per_batch > 1 does not work?
+#Remove sorting of anchor scores
+#Why not 32 bboxes from generator
+#Review use of k=200. Should it come automatically from CNN feature size?
+#Use tensorboard
+#Use all images and use pickle after first load of all images
