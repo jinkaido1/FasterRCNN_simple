@@ -40,12 +40,14 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
 
         #use_preloaded_data = False
         use_preloaded_data = True
-        cached_filename = '/home/manju/code/ML/data/global-wheat-detection/cached/keras_generator_bbox_imgids.npy'
+        #cached_filename = '/home/manju/code/ML/data/global-wheat-detection/cached/keras_generator_bbox_imgids_2500.npy'
+        #cached_filename = '/home/manju/code/ML/data/global-wheat-detection/cached/keras_generator_bbox_imgids_25000.npy'
+        cached_filename = '/home/manju/code/ML/data/global-wheat-detection/cached/keras_generator_bbox_imgids_all.npy'
         #Read from raw files and save a cached file for next time
         if not use_preloaded_data:
             for i, row in df.iterrows():
-                if i > 2500:
-                  break
+                #if i > 25000:
+                #  break
                 if i%1000==0:
                     print(str(i) + ' of ' + str(len(df)) + ' bboxes read')
                 img_id = row['image_id']
@@ -81,18 +83,17 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
                     f.close()
             print( len(self.img_ids))
             print( len(self.bbox_data))
-            input('d')
         #Load from cached saved data 
         else:
             with open(cached_filename, 'rb') as f:
                 data = pickle.load(f)
-                print(data)
-                print(data.keys)
+                #print(data)
+                #print(data.keys)
                 self.bbox_data = data['bbox_data']
                 self.img_ids = data['img_ids']
             print( len(self.img_ids))
             print( len(self.bbox_data))
-            input('d2')
+            #input('d2')
 
         self.Y_reg = np.zeros((anchor_boxes.shape[0],4))
         self.Y_cls = np.zeros((anchor_boxes.shape[0],2))

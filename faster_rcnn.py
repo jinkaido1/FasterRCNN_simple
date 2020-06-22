@@ -22,13 +22,13 @@ def custom_loss_2(layer):
     return loss
 
 
-#1. Generate simple network that
-#a. Uses VGG 16 backbone, but ignores later layers
-#b. Adds region proposal n/w
-#2. Data generator that goes over wheat data and generates training data
-#a. What format of input does nw need
-#b. Simple generator
-#3. Train
+##1. Generate simple network that
+##a. Uses VGG 16 backbone, but ignores later layers
+##b. Adds region proposal n/w
+##2. Data generator that goes over wheat data and generates training data
+##a. What format of input does nw need
+##b. Simple generator
+##3. Train
 #4. Callbacks + Tensorboard
 #5. Validation and test set separation
 #6. L1 loss instead of L2
@@ -100,14 +100,24 @@ bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
+checkpoint_dir = "models/checkpoint"
+model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+    filepath=checkpoint_dir,
+    save_weights_only=True,
+    monitor='val_acc',
+    mode='max',
+    save_best_only=True,
+    save_freq = 50
+    )
+
 new_model.fit_generator( generator = bbox_gen,\
-    epochs = 5000,
+    epochs = 100,
     steps_per_epoch=1,
     callbacks=[tensorboard_callback] )
 
-new_model.fit_generator( generator = bbox_gen,\
-    epochs = 1000,
-    steps_per_epoch=1)
+#new_model.fit_generator( generator = bbox_gen,\
+#    epochs = 100,
+#    steps_per_epoch=1)
 
 
 #Why is box loss Nan for 1st iter?
