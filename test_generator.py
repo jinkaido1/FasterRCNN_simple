@@ -51,6 +51,7 @@ for k in bbox_gen:
     lc = bce(k[1]['class_output'], class_rand)
     #lc = bce(k[1]['class_output'], class_zeros)
     #lc = bce(k[1]['class_output'], class_ones)
+    s = np.sum(k[1]['class_output'], axis=1)
     print(lc)
-    print( k[0])
+    print(s)
     input('s')

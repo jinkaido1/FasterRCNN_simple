@@ -10,7 +10,7 @@ from generate_anchors import generate_anchors_simple
 import pickle
 
 #R is xmin ymin xmax ymax
-def area(R1, R2):
+def overlap_area(R1, R2):
     dx = min(R1[2], R2[2]) - max(R1[0], R2[0])
     dy = min(R1[3], R2[3]) - max(R1[1], R2[1])
     if (dx>=0) and (dy>=0):
@@ -18,12 +18,16 @@ def area(R1, R2):
     else:
         return 0
 
+def area(R):
+    dx = R[2]-R[0]
+    dy = R[3]-R[1]
+    return dx*dy
 class boundingBoxImageDataGenerator( keras.utils.Sequence):
 
     def __init__(self, img_folder, bbox_label_file_csv,\
         anchor_boxes, anchor_img_num_rows, anchor_img_num_cols,
         batch_size = 32,
-        num_images_per_epoch = 1, 
+        num_images_per_epoch = 10, 
         shuffle=True, hard_negative=False):
         self.img_folder = img_folder
         self.bbox_label_file_csv = bbox_label_file_csv
@@ -106,9 +110,6 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
 
     def __getitem__(self, index):
 
-        display = True
-        #display = False
-
         self.Y_reg.fill(0)
         self.Y_cls.fill(0)
 
@@ -118,8 +119,6 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         #From the ones that have ROI overlap < threshold, pick the first batch_size - num_positive
         if( index >= len(self.img_ids)):
             index = 0
-
-        
 
         #Load image pertaining to index
         img_id = self.img_ids[index]
@@ -142,89 +141,79 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
             #print(i, a)
             a_bbox = [a[0], a[1], a[2], a[3]]
             #print(a_bbox)
-            num_positive = np.sum(\
+            num_positive_pixels = np.sum(\
                 positive_im_arr[a_bbox[1]:a_bbox[1]+a_bbox[3],\
                                 a_bbox[0]:a_bbox[0]+a_bbox[2]])
             a_bbox_num_pixels = a_bbox[2]*a_bbox[3]
-            score = num_positive/a_bbox_num_pixels
+            score = num_positive_pixels/a_bbox_num_pixels
             anchor_scores[i] = score
-            if score>1:
-              print(num_positive, a_bbox_num_pixels, )
-              input('a')
+            #if score>1:
+            #  print(num_positive_pixels, a_bbox_num_pixels, )
+            #  input('a')
 
         sorted_indexes = np.argsort(-anchor_scores)
-        #for i in range(0, len(sorted_indexes)):
-        #    print( i, anchor_scores[sorted_indexes[i]])
         #TODO - Dont sort by randomly pick boxes that are positive > threshold
         #Positive examples 
-        pos_score_threshold = 0.5
-        neg_score_threshold = 0.1
-        positives = np.empty((0,4))
-        positive_indexes = []
-        for i in range(0, int(self.batch_size/2)):
-            #print(i, anchor_scores[sorted_indexes[i]])
-            if anchor_scores[sorted_indexes[i]]>=pos_score_threshold:
-                positives = np.append(positives, self.anchor_boxes[sorted_indexes[i]])
-                positive_indexes = np.append( positive_indexes, sorted_indexes[i])
-            else:
-                break
-        positives = np.reshape(positives, (int(len(positives)/4), 4))
+        pos_overlap_threshold = 0.5
+        neg_overlap_threshold = 0.1
 
-        #num negatives that need to be added to positives to meet batch_size
-        num_negatives = self.batch_size-positives.shape[0]
-        #Negative examples
-        #TODO - Remove sorting for negatives - pick at random
-        negatives = np.empty((0,4))
-        negative_indexes = []
-        for i in range(len(sorted_indexes)-1,\
-             len(sorted_indexes)-num_negatives-1, -1):
-            if anchor_scores[sorted_indexes[i]]<pos_score_threshold:# and\
-                #anchor_scores[sorted_indexes[i]]>neg_score_threshold:
-                negatives = np.append(negatives, self.anchor_boxes[sorted_indexes[i]])
-                negative_indexes = np.append( negative_indexes, sorted_indexes[i])
-            else:
-                break
-        negatives = np.reshape(negatives, (int(len(negatives)/4), 4))
-        negative_indexes = negative_indexes.astype(int)
-             
-        #print( positives.shape)
-        #print( negatives.shape)
-        #print( positive_indexes)
-        #print( negative_indexes)
-        
-        #Format output correctly for generator
-        #Find best GT BB corresponding to positives
-        positives_bbox = np.empty((0,4))
-
-        for i in range(0, positives.shape[0]):
-            anchor = positives[i, :]
-            max_area = 0
+        num_positives = 0
+        used_positive_indexes = np.zeros((len(self.bbox_data[img_id]),1))
+        print('pos')
+        #Go over all anchor boxes in order decided by the sorted_indexes
+        for i, s in enumerate(sorted_indexes):
+            anchor = self.anchor_boxes[s]
             max_index = -1
-            for j, bbox in enumerate(self.bbox_data[img_id]):
+            max_area = 0
+            #Find GT bbox with max overlap with chosen anchor
+            for j, bbox in enumerate( self.bbox_data[img_id]):
                 R1 = np.copy(bbox)
                 R1[2] += R1[0]
                 R1[3] += R1[1]
                 R2 = np.copy(anchor)
                 R2[2] += R2[0]
                 R2[3] += R2[1]
+                area_R1 = area(R1)
+                area_R2 = area(R2)
+                overlap = overlap_area(R1, R2)
+                overlap_f = overlap*1.0/area_R2
 
-                curr_area = area(R1, R2)
-                if(curr_area>max_area):
-                    max_area = curr_area
+                if(overlap>max_area and overlap_f>pos_overlap_threshold \
+                    and used_positive_indexes[j]==0):
+                    max_area = overlap
                     max_index = j
-            self.Y_reg[max_index,:] = self.bbox_data[img_id][max_index]# - anchor
-            self.Y_cls[max_index,:] = [0, 1]
-            if display:
-                positives_bbox = np.append( positives_bbox, self.bbox_data[img_id][max_index])
 
-        positives_bbox = np.reshape(positives_bbox, (int(len(positives_bbox)/4), 4))
+            if max_index!=-1:
+                self.Y_reg[s,:] = self.bbox_data[img_id][max_index]# - anchor
+                self.Y_cls[s,:] = [0, 1]
+                used_positive_indexes[max_index] = 1
+                num_positives += 1
+            
+            if num_positives >= self.batch_size/2:
+                break
+            
+        #Negative examples
+        #num negatives that need to be added to positives to meet batch_size
+        num_negatives_required = self.batch_size-num_positives
+        num_negatives = 0
+        #Go over all anchor boxes in order decided by the sorted_indexes
+        #Start from reverse order of sorted_indexes
+        for i in range(len(sorted_indexes)-1, 0, -1):
+            s = sorted_indexes[i]
+            anchor = self.anchor_boxes[s]
+            if( anchor_scores[s] < neg_overlap_threshold):
+                self.Y_cls[s,:] = [1, 0]
+                num_negatives += 1
 
-        for i in range(0, negatives.shape[0]):
-            #print( negative_indexes[i])
-            self.Y_cls[negative_indexes[i],:] = [1, 0]
+            if num_negatives >= num_negatives_required:
+                break
 
         #print( self.Y_reg)
         #print( self.Y_cls)
+        #print( self.Y_reg.shape)
+        #print( self.Y_cls.shape)
+        #print(num_positives)
+        #print(num_negatives)
 
         #display = True
         display = False
@@ -243,23 +232,28 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
           ax.set_title('All postives map')
           ax = plt.subplot(2,2,3)
           ax.imshow(im)
-          for i in range(0, positives.shape[0]):
-            anchor = positives[i, :]
-            anchor_bb = positives_bbox[i,:]
-            rect = patches.Rectangle((anchor[0], anchor[1]), anchor[2], anchor[3],\
-                 facecolor='none', edgecolor='g')
-            ax.add_patch(rect)
-            rect = patches.Rectangle((anchor_bb[0], anchor_bb[1]), anchor_bb[2], anchor_bb[3],\
-                 facecolor='none', edgecolor='r')
-            ax.add_patch(rect)
-            
-          for i in range(0, negatives.shape[0]):
-            anchor = negatives[i, :]
-            rect = patches.Rectangle((anchor[0], anchor[1]), anchor[2], anchor[3],\
-                 facecolor='none', edgecolor='b')
-            ax.add_patch(rect)
+          for i,c in enumerate(self.Y_cls):
+              anchor = self.anchor_boxes[i]
+              anchor_bb = self.Y_reg[i,:]
+              edge_color = ''
+              #Neither pos nor neg
+              if(c[0]==0 and c[1]==0):
+                  continue
+              #pos anchors
+              if(c[1]==1):
+                  rect = patches.Rectangle((anchor[0], anchor[1]), anchor[2], anchor[3],\
+                      facecolor='none', edgecolor='g')
+                  ax.add_patch(rect)
+                  rect = patches.Rectangle((anchor_bb[0], anchor_bb[1]), anchor_bb[2], anchor_bb[3],\
+                      facecolor='none', edgecolor='r')
+                  ax.add_patch(rect)
+              #neg anchors
+              else:
+                  rect = patches.Rectangle((anchor[0], anchor[1]), anchor[2], anchor[3],\
+                      facecolor='none', edgecolor='b')
+                  ax.add_patch(rect)
+
           ax.set_title('Sample positive and negative anchors')
- 
           plt.waitforbuttonpress()
 
         im_arr = keras.applications.vgg16.preprocess_input(np.array(im))

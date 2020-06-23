@@ -83,7 +83,7 @@ new_model = Model(inputs=[model.input], outputs=[bbox_output, class_output])
 plot_model( new_model, to_file='vgg_extend.png')
 print( new_model.summary())
 
-opt = optimizers.Adam(learning_rate=0.0001)
+opt = optimizers.Adam(learning_rate=0.001)
 
 #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
 new_model.compile( optimizer=opt, \
