@@ -159,7 +159,6 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
 
         num_positives = 0
         used_positive_indexes = np.zeros((len(self.bbox_data[img_id]),1))
-        print('pos')
         #Go over all anchor boxes in order decided by the sorted_indexes
         for i, s in enumerate(sorted_indexes):
             anchor = self.anchor_boxes[s]
@@ -212,8 +211,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         #print( self.Y_cls)
         #print( self.Y_reg.shape)
         #print( self.Y_cls.shape)
-        #print(num_positives)
-        #print(num_negatives)
+        print("Num pos and neg examples in batch = " + str(num_positives) + " " + str(num_negatives))
 
         #display = True
         display = False

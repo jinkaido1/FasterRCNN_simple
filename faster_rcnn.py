@@ -120,10 +120,8 @@ new_model.fit_generator( generator = bbox_gen,\
 #    steps_per_epoch=1)
 
 
-#Why is box loss Nan for 1st iter?
 #Why num_images_per_batch > 1 does not work?
 #Remove sorting of anchor scores
-#Why not 32 bboxes from generator
 #Review use of k=200. Should it come automatically from CNN feature size?
 #Use tensorboard
 #Use all images and use pickle after first load of all images
