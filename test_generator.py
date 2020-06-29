@@ -13,7 +13,7 @@ bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-
     anchors, anchor_img_num_rows, anchor_img_num_cols)
 
 import numpy as np 
-from FasterRCNN_losses import bounding_box_loss
+from FasterRCNN_losses import bounding_box_loss, class_loss
 
 for k in bbox_gen:
     print(k)
@@ -47,10 +47,11 @@ for k in bbox_gen:
     #lb = bbox_loss( k[1]['bbox_output'], -bbox_ones )
     #lb = bbox_loss( k[1]['bbox_output'], bbox_zeros )
     print(lb)
-    bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-    lc = bce(k[1]['class_output'], class_rand)
+    #bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    bce = class_loss()
+    #lc = bce(k[1]['class_output'], class_rand)
     #lc = bce(k[1]['class_output'], class_zeros)
-    #lc = bce(k[1]['class_output'], class_ones)
+    lc = bce(k[1]['class_output'], 1*class_ones)
     s = np.sum(k[1]['class_output'], axis=1)
     print(lc)
     print(s)

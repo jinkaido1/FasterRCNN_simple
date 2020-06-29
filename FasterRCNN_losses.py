@@ -42,3 +42,25 @@ def bounding_box_loss(anchors):
         return L
 
     return loss
+
+
+def class_loss():
+#
+    def loss(y_true,y_pred):
+        epsilon = 1e-10
+        y_true_sum = K.sum(y_true,2)
+        keep_indexes_0 = y_true[:,:,0]==1
+        keep_indexes_1 = y_true[:,:,1]==1
+        keep_indexes = keep_indexes_0 | keep_indexes_1
+        y_t = y_true[keep_indexes]
+        y_p = y_pred[keep_indexes]
+        y_p += epsilon
+        y_t += epsilon
+        Loss = -y_t*K.log(y_p)
+        L = K.mean(Loss)
+        print(y_p)
+        print(Loss)
+        print(K.mean(L))
+        return L
+
+    return loss

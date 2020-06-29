@@ -27,7 +27,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
     def __init__(self, img_folder, bbox_label_file_csv,\
         anchor_boxes, anchor_img_num_rows, anchor_img_num_cols,
         batch_size = 32,
-        num_images_per_epoch = 10, 
+        num_images_per_epoch = 1, 
         shuffle=True, hard_negative=False):
         self.img_folder = img_folder
         self.bbox_label_file_csv = bbox_label_file_csv
@@ -208,9 +208,9 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
                 break
 
         #print( self.Y_reg)
-        #print( self.Y_cls)
+        print( self.Y_cls)
         #print( self.Y_reg.shape)
-        #print( self.Y_cls.shape)
+        print( self.Y_cls.shape)
         print("Num pos and neg examples in batch = " + str(num_positives) + " " + str(num_negatives))
 
         #display = True

@@ -6,7 +6,7 @@ from keras import layers
 from keras import Model
 from keras import optimizers
 import keras.backend as K
-from FasterRCNN_losses import bounding_box_loss
+from FasterRCNN_losses import bounding_box_loss, class_loss
 from bbox_data_generator import boundingBoxImageDataGenerator
 from keras.callbacks import TensorBoard
 import datetime
@@ -54,6 +54,10 @@ model.layers.pop()
 for layer in model.layers:
     layer.trainable = False
 
+#Set layers to be trainable    
+#model.layers[-1].trainable = True
+#model.layers[-2].trainable = True
+
 plot_model( model, to_file='vgg_part.png')
 print( model.summary())
 
@@ -64,13 +68,13 @@ img_num_rows = 224
 img_num_cols = 224
 anchors_k = 200
 alpha_class = 1
-alpha_bbox = 1
+alpha_bbox = 0
 #Get img size from model instead of hard coded
 anchors = generate_anchors_simple( img_num_rows, img_num_cols, anchors_k )
 k = anchors.shape[0]
 print( anchors.shape )
 
-class_predictions = layers.Dense(k*2, activation='sigmoid', name='class_predictions')(new_dense_1_flat)
+class_predictions = layers.Dense(k*2, activation='softmax', name='class_predictions')(new_dense_1_flat)
 #class_predictions = layers.Dense(k*2, name='class_predictions')(new_dense_1_flat)
 bbox_predictions = layers.Dense(k*4, activation='relu', name='bbox_predictions')(new_dense_1_flat)
 
@@ -83,13 +87,16 @@ new_model = Model(inputs=[model.input], outputs=[bbox_output, class_output])
 plot_model( new_model, to_file='vgg_extend.png')
 print( new_model.summary())
 
-opt = optimizers.Adam(learning_rate=0.001)
+opt = optimizers.Adam(learning_rate=0.0001)
+
+bbox_loss = bounding_box_loss(anchors)
+cl_loss = class_loss()
 
 #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
 new_model.compile( optimizer=opt, \
     loss={
-    'bbox_output':bounding_box_loss(anchors),
-    'class_output':'binary_crossentropy'}, 
+    'bbox_output':bbox_loss,
+    'class_output':cl_loss}, 
     loss_weights={'class_output':alpha_class, 'bbox_output':alpha_bbox})
 
 #Data generator
