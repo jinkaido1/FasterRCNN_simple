@@ -8,7 +8,7 @@ from keras import optimizers
 import keras.backend as K
 from FasterRCNN_losses import bounding_box_loss, class_loss
 from bbox_data_generator import boundingBoxImageDataGenerator
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, ModelCheckpoint
 import datetime
 
 # Define custom loss
@@ -55,7 +55,7 @@ for layer in model.layers:
     layer.trainable = False
 
 #Set layers to be trainable    
-#model.layers[-1].trainable = True
+model.layers[-1].trainable = True
 #model.layers[-2].trainable = True
 
 plot_model( model, to_file='vgg_part.png')
@@ -67,8 +67,8 @@ new_dense_1_flat = layers.Flatten()(new_dense_1)
 img_num_rows = 224
 img_num_cols = 224
 anchors_k = 200
-alpha_class = 1
-alpha_bbox = 0
+alpha_class = 10
+alpha_bbox = 1
 #Get img size from model instead of hard coded
 anchors = generate_anchors_simple( img_num_rows, img_num_cols, anchors_k )
 k = anchors.shape[0]
@@ -107,20 +107,20 @@ bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-checkpoint_dir = "models/checkpoint"
-model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+checkpoint_dir = "/home/manju/code/ML/FasterRCNN_simple/models/checkpoint"
+model_checkpoint_callback = ModelCheckpoint(
     filepath=checkpoint_dir,
     save_weights_only=True,
     monitor='val_acc',
     mode='max',
-    save_best_only=True,
-    save_freq = 50
+    save_best_only=True
     )
 
 new_model.fit_generator( generator = bbox_gen,\
     epochs = 100,
     steps_per_epoch=1,
-    callbacks=[tensorboard_callback] )
+    callbacks=[tensorboard_callback])
+#    callbacks=[tensorboard_callback, model_checkpoint_callback] )
 
 #new_model.fit_generator( generator = bbox_gen,\
 #    epochs = 100,
