@@ -26,8 +26,10 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
 
     def __init__(self, img_folder, bbox_label_file_csv,\
         anchor_boxes, anchor_img_num_rows, anchor_img_num_cols,
+        start_fraction, #Where to begin sampling this data set - 0 means start from beginning/first image
+        end_fraction, #Where to end sampling this data set - 1 means use all images
         batch_size = 32,
-        num_images_per_epoch = 1, 
+        num_images_per_epoch = 10, 
         shuffle=True, hard_negative=False):
         self.img_folder = img_folder
         self.bbox_label_file_csv = bbox_label_file_csv
@@ -99,6 +101,18 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
             print( len(self.bbox_data))
             #input('d2')
 
+        #Remove images that are not in range [start_fraction, end_fraction)
+        num_images = len(self.img_ids)
+        start_img_index = int(num_images*start_fraction)
+        end_img_index = int(num_images*end_fraction-1)
+        
+        print(start_img_index, end_img_index)
+        self.img_ids = self.img_ids[ start_img_index:end_img_index]
+        filtered_bbox_data = {}
+        for img_id in self.img_ids:
+            filtered_bbox_data[img_id] = self.bbox_data[img_id]
+        self.bbox_data = filtered_bbox_data
+        
         self.Y_reg = np.zeros((anchor_boxes.shape[0],4))
         self.Y_cls = np.zeros((anchor_boxes.shape[0],2))
 
@@ -213,8 +227,8 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         print( self.Y_cls.shape)
         print("Num pos and neg examples in batch = " + str(num_positives) + " " + str(num_negatives))
 
-        #display = True
-        display = False
+        display = True
+        #display = False
         if display:
           plt.clf()
           ax = plt.subplot(2,2,1)

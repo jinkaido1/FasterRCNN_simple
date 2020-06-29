@@ -7,10 +7,16 @@ anchor_img_num_cols = 244
 
 num_anchors = 200
 anchors = generate_anchors_simple( anchor_img_num_rows, anchor_img_num_cols, num_anchors )
+#starting_fraction = 0
+#ending_fraction = 0.8
+starting_fraction = 0.8
+ending_fraction = 1
+
 
 bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-detection/train',\
     '/home/manju/code/ML/data/global-wheat-detection/train.csv',\
-    anchors, anchor_img_num_rows, anchor_img_num_cols)
+    anchors, anchor_img_num_rows, anchor_img_num_cols, start_fraction=starting_fraction,
+    end_fraction=ending_fraction)
 
 import numpy as np 
 from FasterRCNN_losses import bounding_box_loss, class_loss
