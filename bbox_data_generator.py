@@ -29,7 +29,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         start_fraction, #Where to begin sampling this data set - 0 means start from beginning/first image
         end_fraction, #Where to end sampling this data set - 1 means use all images
         batch_size = 32,
-        num_images_per_epoch = 10, 
+        num_images_per_epoch = 1, 
         shuffle=True, hard_negative=False):
         self.img_folder = img_folder
         self.bbox_label_file_csv = bbox_label_file_csv
@@ -106,7 +106,6 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         start_img_index = int(num_images*start_fraction)
         end_img_index = int(num_images*end_fraction-1)
         
-        print(start_img_index, end_img_index)
         self.img_ids = self.img_ids[ start_img_index:end_img_index]
         filtered_bbox_data = {}
         for img_id in self.img_ids:
@@ -222,13 +221,13 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
                 break
 
         #print( self.Y_reg)
-        print( self.Y_cls)
+        #print( self.Y_cls)
         #print( self.Y_reg.shape)
-        print( self.Y_cls.shape)
+        #print( self.Y_cls.shape)
         print("Num pos and neg examples in batch = " + str(num_positives) + " " + str(num_negatives))
 
-        display = True
-        #display = False
+        #display = True
+        display = False
         if display:
           plt.clf()
           ax = plt.subplot(2,2,1)

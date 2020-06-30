@@ -100,9 +100,19 @@ new_model.compile( optimizer=opt, \
     loss_weights={'class_output':alpha_class, 'bbox_output':alpha_bbox})
 
 #Data generator
-bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-detection/train',\
+start_train_fraction = 0
+end_train_fraction = .8
+start_val_fraction = .8
+end_val_fraction = 1
+
+bbox_gen_train = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-detection/train',\
     '/home/manju/code/ML/data/global-wheat-detection/train.csv',\
-    anchors, img_num_rows, img_num_cols)
+    anchors, img_num_rows, img_num_cols, start_fraction=start_train_fraction,
+    end_fraction=end_train_fraction)
+bbox_gen_val = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-detection/train',\
+    '/home/manju/code/ML/data/global-wheat-detection/train.csv',\
+    anchors, img_num_rows, img_num_cols, start_fraction=start_val_fraction,
+    end_fraction=end_val_fraction)
 
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -116,7 +126,8 @@ model_checkpoint_callback = ModelCheckpoint(
     save_best_only=True
     )
 
-new_model.fit_generator( generator = bbox_gen,\
+new_model.fit_generator( generator = bbox_gen_train,\
+    validation_data= bbox_gen_train,
     epochs = 100,
     steps_per_epoch=1,
     callbacks=[tensorboard_callback])
