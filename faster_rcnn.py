@@ -8,7 +8,7 @@ from keras import optimizers
 import keras.backend as K
 from FasterRCNN_losses import bounding_box_loss, class_binary_cross_entropy_loss
 from bbox_data_generator import boundingBoxImageDataGenerator
-from keras.callbacks import TensorBoard, ModelCheckpoint
+from keras.callbacks import TensorBoard, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras import initializers
 import datetime
 
@@ -56,8 +56,8 @@ for layer in model.layers:
     layer.trainable = False
 
 #Set layers to be trainable    
-#model.layers[-1].trainable = True
-#model.layers[-2].trainable = True
+model.layers[-1].trainable = True
+model.layers[-2].trainable = True
 
 plot_model( model, to_file='vgg_part.png')
 print( model.summary())
@@ -137,11 +137,15 @@ model_checkpoint_callback = ModelCheckpoint(
     save_best_only=True
     )
 
+reduce_lr_callback = ReduceLROnPlateau(monitor='val_loss', factor=0.3,
+                              patience=250, cooldown=250, min_lr=0.00000000001,
+                              verbose=1)
+
 new_model.fit_generator( generator = bbox_gen_train,\
     validation_data= bbox_gen_val,
-    epochs = 1000,
+    epochs = 10000,
     steps_per_epoch=1,
-    callbacks=[tensorboard_callback])
+    callbacks=[tensorboard_callback, reduce_lr_callback])
 #    callbacks=[tensorboard_callback, model_checkpoint_callback] )
 
 #new_model.fit_generator( generator = bbox_gen,\
