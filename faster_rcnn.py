@@ -6,9 +6,10 @@ from keras import layers
 from keras import Model
 from keras import optimizers
 import keras.backend as K
-from FasterRCNN_losses import bounding_box_loss, class_loss
+from FasterRCNN_losses import bounding_box_loss, class_binary_cross_entropy_loss
 from bbox_data_generator import boundingBoxImageDataGenerator
 from keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.keras import initializers
 import datetime
 
 # Define custom loss
@@ -55,7 +56,7 @@ for layer in model.layers:
     layer.trainable = False
 
 #Set layers to be trainable    
-model.layers[-1].trainable = True
+#model.layers[-1].trainable = True
 #model.layers[-2].trainable = True
 
 plot_model( model, to_file='vgg_part.png')
@@ -67,14 +68,15 @@ new_dense_1_flat = layers.Flatten()(new_dense_1)
 img_num_rows = 224
 img_num_cols = 224
 anchors_k = 200
-alpha_class = 10
+alpha_class = 1000
 alpha_bbox = 1
 #Get img size from model instead of hard coded
 anchors = generate_anchors_simple( img_num_rows, img_num_cols, anchors_k )
 k = anchors.shape[0]
 print( anchors.shape )
 
-class_predictions = layers.Dense(k*2, activation='softmax', name='class_predictions')(new_dense_1_flat)
+class_predictions = layers.Dense(k*2, activation='relu',\
+    name='class_predictions')(new_dense_1_flat)
 #class_predictions = layers.Dense(k*2, name='class_predictions')(new_dense_1_flat)
 bbox_predictions = layers.Dense(k*4, activation='relu', name='bbox_predictions')(new_dense_1_flat)
 
@@ -82,15 +84,19 @@ class_output = layers.Reshape((k,2), name='class_output')(class_predictions)
 bbox_output = layers.Reshape((k,4), name='bbox_output')(bbox_predictions)
 
 new_model = Model(inputs=[model.input], outputs=[bbox_output, class_output])
+#new_model = Model(inputs=[model.input], outputs=[class_output])
 #new_model = Model(inputs=[model.input], outputs=[class_predictions, bbox_predictions])
 
 plot_model( new_model, to_file='vgg_extend.png')
 print( new_model.summary())
 
-opt = optimizers.Adam(learning_rate=0.0001)
+#opt = optimizers.Adam(learning_rate=0.0001)
+#opt = optimizers.Adam(learning_rate=.0001)
+#opt = optimizers.SGD(learning_rate=.0001)
+opt = optimizers.RMSprop(learning_rate=.00001)
 
 bbox_loss = bounding_box_loss(anchors)
-cl_loss = class_loss()
+cl_loss = class_binary_cross_entropy_loss()
 
 #Verify loss function is still ok after moving to off-center BBox definition (x,y,w,h)
 new_model.compile( optimizer=opt, \
@@ -98,6 +104,11 @@ new_model.compile( optimizer=opt, \
     'bbox_output':bbox_loss,
     'class_output':cl_loss}, 
     loss_weights={'class_output':alpha_class, 'bbox_output':alpha_bbox})
+
+#new_model.compile( optimizer=opt, \
+#    loss={
+#    'class_output':cl_loss}, 
+#    loss_weights={'class_output':alpha_class})
 
 #Data generator
 start_train_fraction = 0
@@ -127,8 +138,8 @@ model_checkpoint_callback = ModelCheckpoint(
     )
 
 new_model.fit_generator( generator = bbox_gen_train,\
-    validation_data= bbox_gen_train,
-    epochs = 100,
+    validation_data= bbox_gen_val,
+    epochs = 1000,
     steps_per_epoch=1,
     callbacks=[tensorboard_callback])
 #    callbacks=[tensorboard_callback, model_checkpoint_callback] )

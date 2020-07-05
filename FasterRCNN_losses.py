@@ -44,6 +44,38 @@ def bounding_box_loss(anchors):
     return loss
 
 
+def class_binary_cross_entropy_loss():
+#
+    def loss(y_true,y_pred):
+        epsilon = 1e-10
+        y_true_sum = K.sum(y_true,2)
+        keep_indexes_0 = y_true[:,:,0]==1
+        keep_indexes_1 = y_true[:,:,1]==1
+        keep_indexes = keep_indexes_0 | keep_indexes_1
+        y_t = y_true[keep_indexes]
+        y_p = y_pred[keep_indexes]
+        y_p += epsilon
+        y_t += epsilon
+        y_p_exp = K.exp(y_p)
+        y_p_exp_sum = K.sum( y_p_exp, 1)
+        y_p_exp_sum_repeat = K.repeat( K.expand_dims(y_p_exp_sum), 2)
+        y_p_exp_sum_repeat = K.squeeze(y_p_exp_sum_repeat, 2)+epsilon
+        y_p_prob = y_p_exp/y_p_exp_sum_repeat
+
+        print( y_p)
+        print( y_p_exp)
+        print( y_p_exp_sum)
+        print( y_p_exp_sum_repeat)
+        print( y_p_prob)
+
+        Loss = -y_t*K.log(y_p_prob)
+        L = K.mean(Loss)
+        print(Loss)
+        print(L)
+        return L
+
+    return loss
+
 def class_loss():
 #
     def loss(y_true,y_pred):
@@ -58,9 +90,8 @@ def class_loss():
         y_t += epsilon
         Loss = -y_t*K.log(y_p)
         L = K.mean(Loss)
-        print(y_p)
-        print(Loss)
-        print(K.mean(L))
+        #print(Loss[0:10,:])
+        #print(L)
         return L
 
     return loss

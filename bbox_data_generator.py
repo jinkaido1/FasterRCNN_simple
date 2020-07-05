@@ -29,6 +29,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         start_fraction, #Where to begin sampling this data set - 0 means start from beginning/first image
         end_fraction, #Where to end sampling this data set - 1 means use all images
         batch_size = 32,
+        num_images_per_batch = 1,
         num_images_per_epoch = 1, 
         shuffle=True, hard_negative=False):
         self.img_folder = img_folder
@@ -37,12 +38,13 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         self.anchor_img_num_rows = anchor_img_num_rows
         self.anchor_img_num_cols = anchor_img_num_cols
         self.batch_size = batch_size
-        self.num_images_per_batch = 1
+        self.num_images_per_batch = num_images_per_batch
         self.num_images_per_epoch = num_images_per_epoch
         self.shuffle = shuffle
         self.hard_negative = hard_negative
         df = pd.read_csv( self.bbox_label_file_csv)
         self.bbox_data = {}
+        self.current_img_index = 0
 
         #use_preloaded_data = False
         use_preloaded_data = True
@@ -119,7 +121,9 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         #desired input image size to network
 
     def __len__(self):
+        #return int(len(self.img_ids)/self.num_images_per_batch)
         return int(self.num_images_per_epoch/self.num_images_per_batch)
+        
 
     def __getitem__(self, index):
 
@@ -130,11 +134,13 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         #Load positive bounding boxes from image
         #Sort all anchors. Pick the first batch_size/2 which have ROI overlap > threshold
         #From the ones that have ROI overlap < threshold, pick the first batch_size - num_positive
-        if( index >= len(self.img_ids)):
-            index = 0
+        #To test overfitting:
+        #if( self.current_img_index >= 1):
+        if( self.current_img_index >= len(self.img_ids)):
+            self.current_img_index = 0
 
         #Load image pertaining to index
-        img_id = self.img_ids[index]
+        img_id = self.img_ids[self.current_img_index]
         im = Image.open( self.img_folder+'/'+img_id+'.jpg')
         anchor_y = self.anchor_img_num_rows
         anchor_x = self.anchor_img_num_cols
@@ -164,7 +170,8 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
             #  print(num_positive_pixels, a_bbox_num_pixels, )
             #  input('a')
 
-        sorted_indexes = np.argsort(-anchor_scores)
+        #sorted_indexes = np.argsort(-anchor_scores)
+        sorted_indexes = np.arange(0, self.anchor_boxes.shape[0])
         #TODO - Dont sort by randomly pick boxes that are positive > threshold
         #Positive examples 
         pos_overlap_threshold = 0.5
@@ -224,7 +231,7 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         #print( self.Y_cls)
         #print( self.Y_reg.shape)
         #print( self.Y_cls.shape)
-        print("Num pos and neg examples in batch = " + str(num_positives) + " " + str(num_negatives))
+        print("Index " + str(self.current_img_index) + "("+ str(index) + ") of " + str(len(self.img_ids)) + " Num pos and neg examples in batch = " + str(num_positives) + " " + str(num_negatives))
 
         #display = True
         display = False
@@ -270,6 +277,9 @@ class boundingBoxImageDataGenerator( keras.utils.Sequence):
         im_arr = keras.applications.vgg16.preprocess_input(np.array(im))
 
         X = np.expand_dims(im_arr, axis=0) 
+
+        self.current_img_index += 1
+
         return (X, \
             {'class_output':np.expand_dims(self.Y_cls, axis=0),\
               'bbox_output':np.expand_dims(self.Y_reg, axis=0)})

@@ -19,9 +19,10 @@ bbox_gen = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wheat-
     end_fraction=ending_fraction)
 
 import numpy as np 
-from FasterRCNN_losses import bounding_box_loss, class_loss
+from FasterRCNN_losses import bounding_box_loss, class_loss, class_binary_cross_entropy_loss
 
-for k in bbox_gen:
+for i in range(1,10):
+  for k in bbox_gen:
     print(k)
     print(k[1]['class_output'])
     print(k[1]['bbox_output'])
@@ -37,6 +38,15 @@ for k in bbox_gen:
     class_rand = np.random.rand(k[1]['class_output'].shape[0],\
          k[1]['class_output'].shape[1],
          k[1]['class_output'].shape[2])
+    sigmoid_rand = np.exp(abs(class_rand))
+    #sigmoid_rand[0,:,0] = 1
+    #sigmoid_rand[0,:,1] = 0
+
+    sigmoid_sum = np.zeros( sigmoid_rand.shape)
+    sigmoid_sum[0,:,0] = np.sum( sigmoid_rand, 2)
+    sigmoid_sum[0,:,1] = np.sum( sigmoid_rand, 2)
+    class_sigmoid = sigmoid_rand/sigmoid_sum
+
     class_zeros = np.zeros((k[1]['class_output'].shape[0],\
          k[1]['class_output'].shape[1],
          k[1]['class_output'].shape[2]))
@@ -53,11 +63,15 @@ for k in bbox_gen:
     #lb = bbox_loss( k[1]['bbox_output'], -bbox_ones )
     #lb = bbox_loss( k[1]['bbox_output'], bbox_zeros )
     print(lb)
-    #bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-    bce = class_loss()
-    #lc = bce(k[1]['class_output'], class_rand)
-    #lc = bce(k[1]['class_output'], class_zeros)
-    lc = bce(k[1]['class_output'], 1*class_ones)
+    #ce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    #ce = class_loss()
+    ce = class_binary_cross_entropy_loss()
+    #lc = ce(k[1]['class_output'], class_rand)
+    lc = ce(k[1]['class_output'], abs(class_rand))
+    #lc = ce(k[1]['class_output'], class_zeros)
+    #lc = ce(k[1]['class_output'], 0.5*class_ones)
+    #lc = ce(k[1]['class_output'], k[1]['class_output'])
+
     s = np.sum(k[1]['class_output'], axis=1)
     print(lc)
     print(s)
