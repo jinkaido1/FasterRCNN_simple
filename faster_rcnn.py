@@ -128,30 +128,37 @@ bbox_gen_val = boundingBoxImageDataGenerator('/home/manju/code/ML/data/global-wh
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-checkpoint_dir = "/home/manju/code/ML/FasterRCNN_simple/models/checkpoint"
+checkpoint_dir = "models/model-epoch-{epoch:06d}-loss-{loss:.2f}.hdf5"
 model_checkpoint_callback = ModelCheckpoint(
     filepath=checkpoint_dir,
     save_weights_only=True,
-    monitor='val_acc',
-    mode='max',
-    save_best_only=True
+    monitor='loss',
+    period = 5,
+    save_best_only=True,
+    verbose=1
     )
 
 reduce_lr_callback = ReduceLROnPlateau(monitor='val_loss', factor=0.3,
                               patience=250, cooldown=250, min_lr=0.00000000001,
                               verbose=1)
 
+#Save model json before training
+new_model_json = new_model.to_json()
+with open("models/model.json", "w") as json_file:
+    json_file.write(new_model_json)
+
 new_model.fit_generator( generator = bbox_gen_train,\
     validation_data= bbox_gen_val,
-    epochs = 10000,
+    epochs = 10,
     steps_per_epoch=1,
-    callbacks=[tensorboard_callback, reduce_lr_callback])
-#    callbacks=[tensorboard_callback, model_checkpoint_callback] )
+#    callbacks=[tensorboard_callback, reduce_lr_callback])
+    callbacks=[tensorboard_callback, reduce_lr_callback, model_checkpoint_callback] )
 
 #new_model.fit_generator( generator = bbox_gen,\
 #    epochs = 100,
 #    steps_per_epoch=1)
 
+new_model.save_weights('models/final_model_weights.hdf5')
 
 #Why num_images_per_batch > 1 does not work?
 #Remove sorting of anchor scores
